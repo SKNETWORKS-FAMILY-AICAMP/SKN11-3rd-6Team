@@ -22,9 +22,12 @@ import random
 import os
 import json
 
-from qa_generator import QAGenerator
 from config import MODEL_CONFIGS, DEFAULT_CONFIG
+from question_gen import EnglishQuestionGenerator
+from rag import RAG
+from llm import LLM
 
+from database import COUNTRIES, TOPICS
 
 class VectorDBRAGFineTuner:
     def __init__(
@@ -39,6 +42,8 @@ class VectorDBRAGFineTuner:
         self.use_qlora = use_qlora
         self.max_length = max_length
         self.vectordb_path = vectordb_path
+        self.countries= COUNTRIES
+        self.topics= TOPICS
         
         # 임베딩 설정
         if "openai" in embedding_model.lower():
@@ -73,11 +78,12 @@ class VectorDBRAGFineTuner:
                 bnb_4bit_use_double_quant=True,
             )
         
-        # QA 생성기
-        self.qa_generator = QAGenerator(self.vectordb)
+        # Question 생성기
+        self.q_generator = EnglishQuestionGenerator()
         
         self.model = None
         self.tokenizer = None
+        self.rag = RAG()
     
     def _load_vectordb(self):
         """VectorDB 로드"""
@@ -138,17 +144,35 @@ class VectorDBRAGFineTuner:
         """VectorDB에서 QA 쌍 생성"""
         qa_pairs = []
         
-        # 모든 문서 가져오기
-        all_docs = self.vectordb._collection.get()['documents']
-        all_docs = [Document(page_content=doc) for doc in all_docs]
-        
-        qa_types = ["factoid", "explanation", "summary"]
-        
         for i in tqdm(range(num_pairs), desc="Generating QA pairs"):
             try:
-                doc = random.choice(all_docs)
-                qa_type = random.choice(qa_types)
-                qa_pair = self.qa_generator.generate_qa(doc.page_content, qa_type)
+                country = random.choice(self.countries)
+                doc_type = random.choice(self.topics)
+                
+                # 영어 질문 생성
+                questions = self.q_generator.generate_topic_questions(country, doc_type)
+                question = random.choice(questions)
+                
+                # RAG 기반 응답 생성 사용
+                context, references = self.rag.search_with_translation(
+                    query=question.question,
+                    country=country.lower(),
+                    doc_type=doc_type+"_info"
+                )
+                
+                llm = LLM(model_name="gpt-4o")
+                answer = llm.generate_with_translation(
+                    query=question.question,
+                    context=context,
+                    references=references,
+                    translate_to_korean=True
+                )
+                
+                qa_pair = {
+                    "question": question,
+                    "answer": answer,
+                    "context": context[:1000]
+                }
                 
                 if qa_pair:
                     qa_pairs.append(qa_pair)
