@@ -53,7 +53,8 @@ class LLM:
         query: str,
         context: str,
         references: List[Dict[str, Any]],
-        translate_to_korean: bool = True
+        translate_to_korean: bool = True,
+        history: Optional[List[Dict[str, str]]] = None
     ) -> str:
         """응답 생성 후 한국어로 번역"""
         
@@ -68,12 +69,14 @@ class LLM:
         {context}
 
         Please answer the query based on the provided context."""
-        
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-        
+
+        # history가 있으면 메시지 리스트에 자연스럽게 삽입
+        messages = [{"role": "system", "content": system_prompt}]
+        if history and isinstance(history, list) and len(history) > 0:
+            # history는 [{"role": ..., "content": ...}, ...] 형식이어야 함
+            messages.extend(history)
+        messages.append({"role": "user", "content": user_prompt})
+
         # LLM 응답 생성
         if self.model_name.startswith("gpt-"):
             response = await self.openai_client.chat.completions.create(
@@ -85,19 +88,22 @@ class LLM:
             answer = response.choices[0].message.content
         elif self.model_name.startswith("gemini-"):
             # Gemini 또는 다른 모델
+            # history를 프롬프트에 추가 (role: user/assistant 식으로 합침)
+            history_text = ""
+            if history and isinstance(history, list) and len(history) > 0:
+                history_text = "\n".join([f"{h['role']}: {h['content']}" for h in history]) + "\n"
+            full_prompt = f"{system_prompt}\n\n{history_text}{user_prompt}"
             model = genai.GenerativeModel(self.model_name)
-            full_prompt = f"{system_prompt}\n\n{user_prompt}"
             response = model.generate_content(full_prompt)
             answer = response.text
         else:
             # 파인튜닝된 모델 (OpenAI 파인튜닝 모델)
             try:
                 logger.info(f"Using fine-tuned model: {self.model_name}")
-                # 파인튜닝 모델은 OpenAI API를 통해 사용
                 response = await self.openai_client.chat.completions.create(
                     model=self.model_name,
                     messages=messages,
-                    temperature=0.2,  # 파인튜닝 모델에는 약간 높은 temperature 사용
+                    temperature=0.2,
                     max_tokens=1000
                 )
                 answer = response.choices[0].message.content

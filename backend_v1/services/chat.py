@@ -128,6 +128,15 @@ class ChatService:
         db.add(user_message)
         db.commit()
         
+        messages = db.query(Message).filter(
+            Message.conversation_id == conversation.id
+        ).order_by(Message.created_at.asc()).all()
+        
+        history = [
+            {"role": m.role, "content": m.content}
+            for m in messages
+        ]
+        
         country = request.country or conversation.country
         topic = request.topic or conversation.topic
         
@@ -141,21 +150,20 @@ class ChatService:
         # LLM 응답 생성 (번역 포함)
         # 사용자가 선택한 모델이 있는 경우 해당 모델 사용
         if request.model_id:
-            # 기존 LLM 인스턴스 대신 새 인스턴스 생성 (선택한 모델로)
             llm = LLM(model_name=request.model_id)
             response_text = await llm.generate_with_translation(
                 query=request.message,
                 context=context,
                 references=references,
+                history=history,  # 추가
                 translate_to_korean=True
             )
-            logger.info(f"Using user-selected model: {request.model_id}")
         else:
-            # 기본 LLM 인스턴스 사용
             response_text = await self.llm.generate_with_translation(
                 query=request.message,
                 context=context,
                 references=references,
+                history=history,  # 추가
                 translate_to_korean=True
             )
         
