@@ -59,22 +59,38 @@ class LLM:
         """응답 생성 후 한국어로 번역"""
         
         # 영어로 응답 생성
-        system_prompt = """You are Ready To Go, a helpful travel information assistant.
+        system_prompt = """You are Ready To Go, a friendly travel information assistant.
         You specialize in providing accurate information about visa requirements, insurance, and immigration procedures.
-        Provide clear and detailed answers based on the context provided."""
         
-        user_prompt = f"""Query: {query}
-
-        Context:
-        {context}
-
-        Please answer the query based on the provided context."""
-
-        # history가 있으면 메시지 리스트에 자연스럽게 삽입
+        IMPORTANT GUIDELINES:
+        1. NEVER mention "based on the context" or "according to the provided context" or similar phrases
+        2. Answer directly and naturally as if you know the information
+        3. Be conversational and helpful
+        4. If you have specific information about a topic, share it confidently
+        5. If you don't have specific information, provide general helpful advice
+        
+        Remember: You are having a natural conversation with a traveler who needs help. Don't mention technical details about contexts or information sources."""
+        
+        # 이전 대화 기록이 있는 경우 컨텍스트에 포함
         messages = [{"role": "system", "content": system_prompt}]
+        
+        # history 추가 (이미 번역된 상태로 전달됨)
         if history and isinstance(history, list) and len(history) > 0:
-            # history는 [{"role": ..., "content": ...}, ...] 형식이어야 함
             messages.extend(history)
+        
+        # 새로운 사용자 질문 추가
+        if context and context.strip():
+            user_prompt = f"""Query: {query}
+
+Relevant Information:
+{context}
+
+Please provide a direct and natural answer to the query."""
+        else:
+            user_prompt = f"""Query: {query}
+
+Please provide a helpful answer to this query."""
+            
         messages.append({"role": "user", "content": user_prompt})
 
         # LLM 응답 생성
@@ -88,11 +104,16 @@ class LLM:
             answer = response.choices[0].message.content
         elif self.model_name.startswith("gemini-"):
             # Gemini 또는 다른 모델
-            # history를 프롬프트에 추가 (role: user/assistant 식으로 합침)
+            # history를 프롬프트에 추가
             history_text = ""
             if history and isinstance(history, list) and len(history) > 0:
-                history_text = "\n".join([f"{h['role']}: {h['content']}" for h in history]) + "\n"
-            full_prompt = f"{system_prompt}\n\n{history_text}{user_prompt}"
+                for h in history:
+                    if h['role'] == 'user':
+                        history_text += f"User: {h['content']}\n"
+                    elif h['role'] == 'assistant':
+                        history_text += f"Assistant: {h['content']}\n"
+                history_text += "\n"
+            full_prompt = f"{system_prompt}\n\n{history_text}User: {user_prompt}\nAssistant:"
             model = genai.GenerativeModel(self.model_name)
             response = model.generate_content(full_prompt)
             answer = response.text
@@ -124,7 +145,12 @@ class LLM:
         # 한국어로 번역
         if translate_to_korean:
             try:
-                translate_prompt = f"한국어로 출력해줘, Always respond in Korean, no matter the situation.:\n\n{answer}"
+                translate_prompt = f"Translate the following text to Korean. Make it sound natural and conversational, not like a translation. Keep the meaning intact:\n\n{answer}"
+                
+                # 번역할 내용이 이미 한국어인지 체크
+                if any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in answer[:50]):
+                    # 이미 한국어 포함되어 있으면 번역 스킵
+                    return answer
                 translated_answer = self.translator.invoke(translate_prompt)
                 return translated_answer.content
             except Exception as e:

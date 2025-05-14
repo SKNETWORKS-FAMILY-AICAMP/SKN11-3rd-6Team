@@ -87,6 +87,8 @@ class ChatService:
             if country:
                 query = query.filter(FAQ.country == country.lower())
             if topic:
+                if topic=="safety":
+                    topic="immigration_safety"
                 query = query.filter(FAQ.topic == topic.lower())
                 
             # 생성일 기준 정렬 및 가져오기
@@ -127,25 +129,43 @@ class ChatService:
         )
         db.add(user_message)
         db.commit()
+        db.refresh(user_message)
         
-        messages = db.query(Message).filter(
-            Message.conversation_id == conversation.id
+        # 이전 메시지들 가져오기 (현재 메시지 제외)
+        previous_messages = db.query(Message).filter(
+            Message.conversation_id == conversation.id,
+            Message.id != user_message.id
         ).order_by(Message.created_at.asc()).all()
         
         history = [
             {"role": m.role, "content": m.content}
-            for m in messages
+            for m in previous_messages
         ]
         
+        # 디버그: 히스토리 확인
+        logger.info(f"Conversation {conversation.id} history: {len(history)} messages")
+        
         country = request.country or conversation.country
+        country = country.replace(" " , "").lower()
+        
         topic = request.topic or conversation.topic
+        if topic == "immigration":
+            topic = "immigration_regulations_info"
+        elif topic == "safety":
+            topic = "immigration_safety_info"
+        else :
+            topic = topic + "_info"
         
         # RAG 검색 (번역 포함)
         context, references = self.rag.search_with_translation(
             query=request.message,
-            country=country.lower(),
-            doc_type=topic+"_info"
+            country=country,
+            doc_type=topic
         )
+        
+        # RAG 검색 결과 로그
+        logger.info(f"RAG context length: {len(context) if context else 0}")
+        logger.info(f"References found: {len(references) if references else 0}")
         
         # LLM 응답 생성 (번역 포함)
         # 사용자가 선택한 모델이 있는 경우 해당 모델 사용
@@ -155,7 +175,7 @@ class ChatService:
                 query=request.message,
                 context=context,
                 references=references,
-                history=history,  # 추가
+                history=history,
                 translate_to_korean=True
             )
         else:
@@ -163,9 +183,12 @@ class ChatService:
                 query=request.message,
                 context=context,
                 references=references,
-                history=history,  # 추가
+                history=history,
                 translate_to_korean=True
             )
+        
+        # 응답 길이 로그
+        logger.info(f"Generated response length: {len(response_text) if response_text else 0}")
         
         # 응답 저장
         assistant_message = Message(

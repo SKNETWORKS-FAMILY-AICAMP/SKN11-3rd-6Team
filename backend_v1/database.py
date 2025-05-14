@@ -83,7 +83,7 @@ COUNTRIES = [
     {"emoji": "🇵🇭", "name_kr": "필리핀", "name_en": "Philippines"},
     {"emoji": "🇮🇩", "name_kr": "인도네시아", "name_en": "Indonesia"},
     {"emoji": "🇹🇭", "name_kr": "태국", "name_en": "Thailand"},
-    {"emoji": "🇬🇧", "name_kr": "영국", "name_en": "United Kingdom"},
+    {"emoji": "🇬🇧", "name_kr": "영국", "name_en": "UK"},
     {"emoji": "🇸🇬", "name_kr": "싱가포르", "name_en": "Singapore"},
     {"emoji": "🇲🇾", "name_kr": "말레이시아", "name_en": "Malaysia"},
     {"emoji": "🇪🇸", "name_kr": "스페인", "name_en": "Spain"},
