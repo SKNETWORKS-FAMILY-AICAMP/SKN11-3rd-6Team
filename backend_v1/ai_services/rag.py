@@ -131,6 +131,10 @@ class RAG:
         # 문서 검색
         docs = retriever.get_relevant_documents(translated_query)
         
+        # if not docs or all(any(ord(char) >= 0xAC00 and ord(char) <= 0xD7A3 for char in doc.page_content[:50]) for doc in docs):
+        #     # 2차 검색: 원본 한국어 쿼리로 재검색
+        #     docs = retriever.get_relevant_documents(query)
+        
         if not docs:
             return "관련 문서를 찾지 못했습니다.", []
         

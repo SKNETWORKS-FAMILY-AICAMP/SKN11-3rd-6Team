@@ -38,6 +38,7 @@ google-generativeai
 deep-translator
 chromadb
 langchain
+langchain-openai
 tiktoken
 pydantic
 pydantic-settings
@@ -46,7 +47,8 @@ sqlalchemy
 PyMuPDF
 pymysql
 langchain_community
-openai
 langchain-text-splitters
-google-generativeai
 cryptography
+torch
+transformers
+sentencepiece

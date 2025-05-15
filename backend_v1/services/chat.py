@@ -49,27 +49,13 @@ class ChatService:
         # 기본 모델 목록
         models = [
             {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo"},
-            {"id": "gpt-4", "name": "GPT-4"}
+            {"id": "gpt-4", "name": "GPT-4"},
+            {"id": "flan-t5-base", "name": "Flan-T5 Base(Fine-Tuned)"}
         ]
         
         # self.llm.get_model_list()가 구현되어 있다면 사용
         if hasattr(self.llm, "get_model_list"):
             models = self.llm.get_model_list()
-        
-        # 파인튜닝된 모델 정보 추가
-        try:
-            finetuned_model_path = "./data/finetuned_models.json"
-            if os.path.exists(finetuned_model_path):
-                with open(finetuned_model_path, "r") as f:
-                    finetuned_model = json.load(f)
-                    if "model_id" in finetuned_model:
-                        models.append({
-                            "id": finetuned_model["model_id"],
-                            "name": "Ready To Go 파인튜닝 모델"
-                        })
-                    logger.info(f"Added finetuned model: {finetuned_model.get('model_id')}")
-        except Exception as e:
-            logger.error(f"Error loading finetuned models: {e}")
             
         return models
 
@@ -100,6 +86,37 @@ class ChatService:
                 
         except Exception as e:
             logger.error(f"Error fetching example questions: {e}")
+        finally:
+            db.close()
+    
+    def get_document_sources(self, country: str = None, topic: str = None):
+        """선택된 국가/토픽의 문서 출처 URL들 반환"""
+        from database import Document, SessionLocal
+        
+        # DB 세션 생성
+        db = SessionLocal()
+        try:
+            # 토픽 변환
+            doc_topic = topic
+            # DB에서 문서 가져오기
+            query = db.query(Document)
+            
+            # 필터 적용
+            if country:
+                query = query.filter(Document.country == country.lower())
+            if doc_topic:
+                query = query.filter(Document.topic == doc_topic.lower())
+                
+            # URL이 있는 문서만 가져오기
+            documents = query.filter(Document.url != None).all()
+            
+            # 중복 제거한 URL 리스트 반환
+            urls = list(set([doc.url for doc in documents if doc.url]))
+            return urls
+                
+        except Exception as e:
+            logger.error(f"Error fetching document sources: {e}")
+            return []
         finally:
             db.close()
 
@@ -170,14 +187,26 @@ class ChatService:
         # LLM 응답 생성 (번역 포함)
         # 사용자가 선택한 모델이 있는 경우 해당 모델 사용
         if request.model_id:
-            llm = LLM(model_name=request.model_id)
-            response_text = await llm.generate_with_translation(
-                query=request.message,
-                context=context,
-                references=references,
-                history=history,
-                translate_to_korean=True
-            )
+            # Flan-T5 모델인지 확인
+            if "t5" in request.model_id.lower():
+                llm = LLM(model_name=request.model_id)
+                response_text = await llm.generate_with_translation(
+                    query=request.message,
+                    context=context,
+                    references=references,
+                    history=history,
+                    translate_to_korean=True,
+                    system_prompt="You are a kind AI assistant who answers questions related to immigration, insurance, national safety, and visa information for different countries. Provide accurate and helpful answers to your questions."
+                )
+            else:
+                llm = LLM(model_name=request.model_id)
+                response_text = await llm.generate_with_translation(
+                    query=request.message,
+                    context=context,
+                    references=references,
+                    history=history,
+                    translate_to_korean=True
+                )
         else:
             response_text = await self.llm.generate_with_translation(
                 query=request.message,

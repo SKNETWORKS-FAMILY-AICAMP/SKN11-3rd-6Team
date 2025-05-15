@@ -86,3 +86,13 @@ async def get_example_questions(
     return {
         "examples": chat_service.get_example_questions(country, topic)
     }
+
+@router.get("/sources")
+async def get_document_sources(
+    country: Optional[str] = None,
+    topic: Optional[str] = None
+):
+    """선택된 국가/토픽의 문서 출처 URL 반환"""
+    return {
+        "sources": chat_service.get_document_sources(country, topic)
+    }
