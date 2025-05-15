@@ -268,29 +268,6 @@ tuner.train(
 ---
 ---
 
-## ✈️ RAG 및 LLM 통합 구현
-
-```python
-# RAG 검색
-context, references = rag.search_with_translation(
-    query="호주 취업비자 신청 조건은?",
-    country="australia",
-    doc_type="visa_info"
-)
-
-# LLM 응답 생성
-response = await llm.generate_with_translation(
-    query="호주 취업비자 신청 조건은?",
-    context=context,
-    references=references
-)
-```
-- RAG는 MMR 방식으로 문서 검색 정확도 향상
-- context 기반 응답 → LLM으로 생성 → 자동 번역
-
----
----
-
 ## ✈️ DB 연동 구현 코드
 ### [링크](https://drive.google.com/drive/folders/1Tpqjcyy5QZZGoZL1YKsrUEsv2veF81Xa?usp=sharing)
 
