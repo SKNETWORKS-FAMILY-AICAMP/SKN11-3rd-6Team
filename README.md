@@ -72,7 +72,7 @@
 |------|------|
 | **LLM** | GPT-3.5-turbo, Flan-T5 (LoRA 파인튜닝), Gemini |
 | **Embedding** | OpenAI `text-embedding-3-small`, `sentence-transformers/all-MiniLM-L6-v` |
-| **Vector DB** | ChromaDB, faiss-cpu |
+| **Vector DB** | ChromaDB |
 | **문서처리** | PyMuPDF, LangChain TextSplitter, deep-translator |
 | **백엔드** | FastAPI, SQLAlchemy |
 | **DB** | MySQL |
