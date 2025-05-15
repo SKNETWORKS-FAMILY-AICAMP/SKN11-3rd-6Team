@@ -109,6 +109,7 @@ ChromaDB 문서 → QA 자동 생성
 ---
 ## ✈️ WBS
 <img src="./WBS.png">
+
 ---
 ---  
 
