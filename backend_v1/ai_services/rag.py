@@ -84,7 +84,6 @@ class RAG:
                         "country": country,
                         "document_type": doc_type,
                         "tag": f"{country}_{doc_type}",
-                        "language": "en",
                         "updated_at": datetime.now().isoformat(),
                         "source": filename
                     }
