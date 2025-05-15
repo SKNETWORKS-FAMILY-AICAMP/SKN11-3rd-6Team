@@ -41,7 +41,6 @@
 
 ---
 ---
-
 ## ✈️ 프로젝트 개요
 
 ### ☁️ 프로젝트명
@@ -62,7 +61,6 @@
 ### ☁️ 목표
 > 세계 곳곳의 정보를 사용자에게 **쉽게**, **빠르게**, **정확하게** 전달하는,  
 > **"여행·이민의 길잡이 웹 플랫폼"** 으로의 진화를 목표로 합니다.
-
 ---
 ---
 
@@ -71,7 +69,7 @@
 | 분야 | 도구 |
 |------|------|
 | **LLM** | GPT-3.5-turbo, Flan-T5 (LoRA 파인튜닝), Gemini |
-| **Embedding** | OpenAI `text-embedding-3-small`, `sentence-transformers/all-MiniLM-L6-v2`|
+| **Embedding** | OpenAI `text-embedding-3-small`, `sentence-transformers/all-MiniLM-L6-v2` |
 | **Vector DB** | ChromaDB |
 | **문서처리** | PyMuPDF, LangChain TextSplitter, deep-translator |
 | **백엔드** | FastAPI, SQLAlchemy |
@@ -111,11 +109,12 @@ ChromaDB 문서 → QA 자동 생성
 
 ---
 ---
+
 ## ✈️ WBS
 <img src="./WBS.png">
 
 ---
----  
+---
 
 ## ✈️ 수집 데이터
 
@@ -169,6 +168,23 @@ ChromaDB 문서 → QA 자동 생성
 ---
 ---
 
+## ✈️ 파인튜닝: 파라미터 설정값
+```python
+tuner.load_model()
+
+tuner.train(
+    output_dir="./finetuned-flan-t5-base",
+    num_qa_pairs=300,
+    num_epochs=5,
+    batch_size=4,
+    learning_rate=5e-5,
+    use_existing_qa_pairs=True 
+)
+```
+
+---
+---
+
 ## ✈️ RAG 및 LLM 통합 구현
 
 ```python
@@ -188,26 +204,20 @@ response = await llm.generate_with_translation(
 ```
 - RAG는 MMR 방식으로 문서 검색 정확도 향상
 - context 기반 응답 → LLM으로 생성 → 자동 번역
-
 ---
 ---
-
 ## ✈️ DB 연동 구현 코드
 ### [링크](https://drive.google.com/drive/folders/1Tpqjcyy5QZZGoZL1YKsrUEsv2veF81Xa?usp=sharing)
-
 ---
 ---
-
 ## ✈️ 수행 결과 요약
 
 - 사용자 질문 → LLM 응답 생성까지 자동화 완성
 - Fine-tuned 모델 적용으로 도메인 적합 응답 확보
 - 국가·주제별 필터링, 예시 질문, 다국어 번역 등 UX 강화
 - 문서 기반 실시간 챗봇 응답 구현
-
 ---
 ---
-
 ## ✈️ 진행 과정 중 프로그램 개선 노력
 > ### ☁️ 웹 크롤링 차단
 - 정보 출처가 공식 기관이다 보니, 웹 크롤링 불가
@@ -230,9 +240,7 @@ response = await llm.generate_with_translation(
   - 하지만 Flan-T5는,
     - 문장이 길면 이해를 못하고
     - 질문-정답 관계를 외우지 않으면 말이 안 되는 답 냄
-
 ---
-
 ### ☁️ 극복 방안: 테스트 및 성능 결과
 | 항목 | 결과 |
 |------|------|
@@ -241,19 +249,15 @@ response = await llm.generate_with_translation(
 | 파인튜닝 | Flan-T5 + LoRA 기반 학습, 정답률 개선 |
 | RAG 성능 | MMR → similarity 변경 후 정확도 향상 |
 | 응답 성능 | GPT > Fine-tuned T5 >>> 기본 모델 |
-
 ---
 ---
-
 ## ✈️ 앞으로의 개선 방향
 - `generate_topic_questions()` 개선 (랜덤 뽑기 → 전체 보존)
 - QA 쌍 coverage 점검 스크립트 제작
 - context 압축 기법 도입 (LLM에게 더 요약된 컨텍스트 주기)
 - 파인튜닝 모델 정제 및 학습 반복
-
 ---
 ---
-
 ## 🛬 한 줄 회고
 ☁️ 나지윤 
 > "처음엔 단지 '챗봇을 만들자'가 저희의 목표였습니다. 문서의 구조를 이해하고, 정보를 정제하고, 모델이 무엇을 알아듣고 무엇을 못 알아듣는지를 처음부터 배웠습니다. 질문 하나가 만들어지기까지, 그 질문에 '좋은' 답변을 추출하기까지 얼마나 많은 과정과 고뇌가 필요한 지 몸소 느꼈습니다. 그래서 결국 우리가 만든 건, 단순 챗봇이 아닌, 정보를 담는 구조였음을 깨달았고, 그 방법을 배울 수 있었습니다." 
