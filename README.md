@@ -295,13 +295,13 @@ response = await llm.generate_with_translation(
   - **질문 생성 과정에서 무작위로 하나만 뽑는 방식**  
   - 특정 국가·주제의 coverage가 비었을 가능성
 <img src="./json.png">
-  ```python
+```python
   {
     "question": "What about insurance for chronic conditions in france?",
     "answer": "For insurance coverage for chronic conditions in France, it's important to select an internationally recognized insurance company that offers comprehensive travel insurance. Look for a policy that includes coverage for emergency medical expenses, medical evacuation, and repatriation. Make sure to check the terms and conditions of the insurance policy carefully to ensure it meets your specific needs, including coverage for chronic conditions.",
     "context": "By guaranteeing theft and lost goods \n \nNotes on signing up insurance \nVisa requirements confirmation: France is generally possible to stay for less than 90 days without a visa, but some rain\nInsurance is required in the type (e.g. long -term stay visa). \n \nInsurance certificate: You may be required to get an insurance certificate when you enter the country, so bring your English insurance certificate.\nPlease do it. \n \nInsurance company selection: Select an internationally recognized insurance company, check the terms and conditions carefully \nMake sure it contains guarantee. \n \nInsurance companies that Koreans can join \nTravelover (TravelOVER): Departure from Korea/Foreign Registration Number/Resident Registration Number up to 90\nYou can join until work.  \nGo! Go! France: Provides health injuries for French students, and before arrival in France\nYou have to wear it \nWorldtrips: Provides comprehensive travel insurance, including medical expenses and emergency travel expenses.  \nStonewe"
   }
-  ```
+```
 
 > ### ☁️ RAG 검색의 '노이즈'
 - `similarity`, `k=1`로 변경
