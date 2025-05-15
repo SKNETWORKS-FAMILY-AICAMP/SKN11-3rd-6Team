@@ -171,7 +171,7 @@
 ---
 
 ## ✈️ WBS
-![WBS](image/WBS.png)
+<img src="./WBS.png">
 
 ---
 ---
@@ -183,7 +183,7 @@
   - 대부분 `.pdf` (공식 대사관·기관 공지문)
   - 여행안전정보: 공공데이터포털 OpenAPI 활용
 - **저장 구조**: 국가_문서유형.pdf → 국가/유형 기반 태깅 저장
-![map](image/Map.png)
+<img src="./Map.png">
 
 ---
 ---
@@ -287,22 +287,14 @@ response = await llm.generate_with_translation(
 ## ✈️ 진행 과정 중 프로그램 개선 노력
 > ### ☁️ 웹 크롤링 차단
 - 정보 출처가 공식 기관이다 보니, 웹 크롤링 불가
-![denied](image/result_image.png)
+<img src="./result_image.png">
 
 > ### ☁️ 학습 데이터의 편향
 - 프랑스 비자 질문을 했는데, 모델은 엉뚱한 답을 했습니다.  
-- 예측: **프랑스 관광비자 관련 QA가 아예 학습에 없었던 것**
+- **프랑스 관광비자 관련 QA가 아예 학습에 없었던 것**
   - **질문 생성 과정에서 무작위로 하나만 뽑는 방식**  
   - 특정 국가·주제의 coverage가 비었을 가능성
-```python
-[
-  {
-    "question": "What types of visas are available for germany?",
-    "answer": "There are different types of visas available for Germany, such as the Germany Schengen Visa for tourists and visitors, as well as specific visas for trade fairs and exhibitions. Each type of visa has its own application process and requirements, so it's important to check the specific details for the type of visa you need before applying.",
-    "context": "Germany Schengen Visa for Tourists & Visitors \nOverview \nype \nErat \nhee \nVII \nAY \nVs 0 \nENE \n18D \npod \nWho needs a tourist and visa for germany? \nChecki You Needa Vist Vist Germany. \nVisa Application Process \nProcessing Time \n~ Paying \nThe VEA Fee \n\u00a9 See The Fl LT of FEES for German \nVIAS \n~ 90/180 rule fruws and vitor to gexmany \n\u00a9 Undernstanging Germany's \n30/180-day run for vistors \nVisa Documents Checklist \nScaly Hosts \nLTR of Nitaon When Visting Family or Fen In Germany \n\u00a9 See Ow to Wie a Letter of Imitation or Visa Application \nDeclaration of Commitment \nRequirems for Minar Applicants \nBI International \nFrequential ASKED Questions \nCant Workin Germany Ona Tourist WA? \nIsanintatin Letter Mandatory for Atouist SA? \nDo \nNee \nTo Shaw Proof of Travel Insurance? \n\\ Whatif Want to Vist The UK WILE RM in Germany? \nCan Children Apply fora Germany Tourist Visa?\n\n---\n\nGermany Visa Information \nGerman Visa Policy \nApplication \nProcess \nDocuments \n10 bar \nFrequent Asked Questions\n\n---\n\nHow to"
-  }
-  ```
-
+<img src="./json.png">
   ```python
   {
     "question": "What about insurance for chronic conditions in france?",
@@ -352,4 +344,4 @@ response = await llm.generate_with_translation(
 > "QA 챗봇을 만들면서 단순한 기술 구현을 넘어, 정보와 질문 사이에 다리를 놓고 사람의 의도를 진심으로 이해하려는 경험을 하여 상당히 의미있는 시간이였다고 생각합니다."
 
 ☁️ 이혜성
-> "냥냥"
+> "전체적인 프로젝트 설계와 백엔드, 프론트엔드 구현은 평소에도 경험이 있었지만, 이번 부트캠프를 통해 핵심 기술인 RAG 및 LLM 통합 구현과 모델 파인튜닝까지 직접 해볼 수 있었던 점이 특히 의미 있었습니다. 이를 통해 한 단계 더 성장한 것 같아 뜻깊은 시간이었습니다. :)"
