@@ -143,7 +143,7 @@
  → Huggingface Datasets 형식으로 tokenization
 
 [4] LoRA 기반 파인튜닝
- → Flan-T5 모델에 QLoRA 적용, context+question → answer 학습
+ → Flan-T5 모델에 LoRA 적용, context+question → answer 학습
 
 [5] Fine-tuned LLM 모델로 교체
  → generate_with_translation 내부에서 model_id로 호출 가능
@@ -234,7 +234,7 @@ tuner.load_model()
 
 tuner.train(
     output_dir="./finetuned-flan-t5-base",
-    num_qa_pairs=300,
+    num_qa_pairs=300, # 1번째 시도: 300, 2번째 시도: 900 
     num_epochs=5,
     batch_size=4,
     learning_rate=5e-5,
@@ -264,20 +264,26 @@ response = await llm.generate_with_translation(
 ```
 - RAG는 MMR 방식으로 문서 검색 정확도 향상
 - context 기반 응답 → LLM으로 생성 → 자동 번역
+
 ---
 ---
+
 ## ✈️ DB 연동 구현 코드
 ### [링크](https://drive.google.com/drive/folders/1Tpqjcyy5QZZGoZL1YKsrUEsv2veF81Xa?usp=sharing)
+
 ---
 ---
+
 ## ✈️ 수행 결과 요약
 
 - 사용자 질문 → LLM 응답 생성까지 자동화 완성
 - Fine-tuned 모델 적용으로 도메인 적합 응답 확보
 - 국가·주제별 필터링, 예시 질문, 다국어 번역 등 UX 강화
 - 문서 기반 실시간 챗봇 응답 구현
+
 ---
 ---
+
 ## ✈️ 진행 과정 중 프로그램 개선 노력
 > ### ☁️ 웹 크롤링 차단
 - 정보 출처가 공식 기관이다 보니, 웹 크롤링 불가
@@ -288,6 +294,22 @@ response = await llm.generate_with_translation(
 - 예측: **프랑스 관광비자 관련 QA가 아예 학습에 없었던 것**
   - **질문 생성 과정에서 무작위로 하나만 뽑는 방식**  
   - 특정 국가·주제의 coverage가 비었을 가능성
+```python
+[
+  {
+    "question": "What types of visas are available for germany?",
+    "answer": "There are different types of visas available for Germany, such as the Germany Schengen Visa for tourists and visitors, as well as specific visas for trade fairs and exhibitions. Each type of visa has its own application process and requirements, so it's important to check the specific details for the type of visa you need before applying.",
+    "context": "Germany Schengen Visa for Tourists & Visitors \nOverview \nype \nErat \nhee \nVII \nAY \nVs 0 \nENE \n18D \npod \nWho needs a tourist and visa for germany? \nChecki You Needa Vist Vist Germany. \nVisa Application Process \nProcessing Time \n~ Paying \nThe VEA Fee \n\u00a9 See The Fl LT of FEES for German \nVIAS \n~ 90/180 rule fruws and vitor to gexmany \n\u00a9 Undernstanging Germany's \n30/180-day run for vistors \nVisa Documents Checklist \nScaly Hosts \nLTR of Nitaon When Visting Family or Fen In Germany \n\u00a9 See Ow to Wie a Letter of Imitation or Visa Application \nDeclaration of Commitment \nRequirems for Minar Applicants \nBI International \nFrequential ASKED Questions \nCant Workin Germany Ona Tourist WA? \nIsanintatin Letter Mandatory for Atouist SA? \nDo \nNee \nTo Shaw Proof of Travel Insurance? \n\\ Whatif Want to Vist The UK WILE RM in Germany? \nCan Children Apply fora Germany Tourist Visa?\n\n---\n\nGermany Visa Information \nGerman Visa Policy \nApplication \nProcess \nDocuments \n10 bar \nFrequent Asked Questions\n\n---\n\nHow to"
+  }
+  ```
+
+  ```python
+  {
+    "question": "What about insurance for chronic conditions in france?",
+    "answer": "For insurance coverage for chronic conditions in France, it's important to select an internationally recognized insurance company that offers comprehensive travel insurance. Look for a policy that includes coverage for emergency medical expenses, medical evacuation, and repatriation. Make sure to check the terms and conditions of the insurance policy carefully to ensure it meets your specific needs, including coverage for chronic conditions.",
+    "context": "By guaranteeing theft and lost goods \n \nNotes on signing up insurance \nVisa requirements confirmation: France is generally possible to stay for less than 90 days without a visa, but some rain\nInsurance is required in the type (e.g. long -term stay visa). \n \nInsurance certificate: You may be required to get an insurance certificate when you enter the country, so bring your English insurance certificate.\nPlease do it. \n \nInsurance company selection: Select an internationally recognized insurance company, check the terms and conditions carefully \nMake sure it contains guarantee. \n \nInsurance companies that Koreans can join \nTravelover (TravelOVER): Departure from Korea/Foreign Registration Number/Resident Registration Number up to 90\nYou can join until work.  \nGo! Go! France: Provides health injuries for French students, and before arrival in France\nYou have to wear it \nWorldtrips: Provides comprehensive travel insurance, including medical expenses and emergency travel expenses.  \nStonewe"
+  }
+  ```
 
 > ### ☁️ RAG 검색의 '노이즈'
 - `similarity`, `k=1`로 변경
@@ -301,7 +323,7 @@ response = await llm.generate_with_translation(
     - 문장이 길면 이해를 못하고
     - 질문-정답 관계를 외우지 않으면 말이 안 되는 답 냄
 ---
-### ☁️ 극복 방안: 테스트 및 성능 결과
+### ☁️ 테스트 및 성능 결과
 | 항목 | 결과 |
 |------|------|
 | 문서 수집 | 약 60개 PDF → 3,200개 청크 |
