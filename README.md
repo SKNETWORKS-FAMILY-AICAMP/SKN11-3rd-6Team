@@ -210,7 +210,8 @@ response = await llm.generate_with_translation(
 - 국가·주제별 필터링, 예시 질문, 다국어 번역 등 UX 강화
 - 문서 기반 실시간 챗봇 응답 구현
 
-![map](image/Map.png)
+![Uploading Map.png…]()
+
 
 ---
 ---
