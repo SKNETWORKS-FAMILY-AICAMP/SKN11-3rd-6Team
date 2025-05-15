@@ -213,19 +213,40 @@
 - 메타데이터: country, document_type, tag, language, updated_at
 
 ### ☁️ API 명세
+<details>
+<summary> Chat API</summary>
 
-| 구분 | 메서드 | 엔드포인트 |
-|------|--------|-------------|
-| Chat | POST | `/api/chat/conversation` |
-| Chat | POST | `/api/chat/message` |
-| Chat | GET | `/api/chat/history/{id}` |
-| Chat | GET | `/api/chat/settings/models` |
-| Chat | GET | `/api/chat/examples` |
-| Meta | GET | `/api/countries`, `/topics`, `/sources` |
-| Docs | GET | `/api/documents/{country}/{topic}` |
-| Docs | GET | `/api/documents/{id}` |
-| Docs | GET | `/api/documents/search?q=...` |
+| 메서드 | 엔드포인트 | 설명 |
+|--------|------------|------|
+| `POST` | `/api/chat/conversation` | 새로운 대화 세션 생성 |
+| `POST` | `/api/chat/message` | 사용자 질문 전송 → GPT/Fine-tuned 모델 응답 |
+| `GET`  | `/api/chat/history/{id}` | 특정 대화 ID에 대한 히스토리 조회 |
+| `GET`  | `/api/chat/settings/models` | 사용 가능한 LLM 모델 목록 반환 |
+| `GET`  | `/api/chat/examples` | 예시 질문 리스트 반환 (프롬프트 힌트용) |
 
+</details>
+
+<details>
+<summary> Meta 정보 API</summary>
+
+| 메서드 | 엔드포인트 | 설명 |
+|--------|------------|------|
+| `GET` | `/api/countries` | 국가 목록 반환 (예: France, Japan...) |
+| `GET` | `/api/topics` | 주제 목록 반환 (비자, 보험, 입국절차 등) |
+| `GET` | `/api/sources` | 문서 출처 목록 반환 (대사관, 외교부 등) |
+
+</details>
+
+<details>
+<summary> 문서 관련 API</summary>
+
+| 메서드 | 엔드포인트 | 설명 |
+|--------|------------|------|
+| `GET` | `/api/documents/{country}/{topic}` | 국가 + 주제에 해당하는 문서 목록 |
+| `GET` | `/api/documents/{id}` | 특정 문서의 상세 내용 조회 |
+| `GET` | `/api/documents/search?q=...` | 키워드 기반 문서 검색 |
+
+</details>
 ---
 ---
 
