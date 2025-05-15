@@ -61,6 +61,7 @@
 ### ☁️ 목표
 > 세계 곳곳의 정보를 사용자에게 **쉽게**, **빠르게**, **정확하게** 전달하는,  
 > **"여행·이민의 길잡이 웹 플랫폼"** 으로의 진화를 목표로 합니다.
+
 ---
 ---
 
@@ -81,37 +82,96 @@
 
 ## ✈️ 시스템 아키텍처 및 워크플로우
 
-### ☁️ 문서 처리 흐름
+### ☁️ 문서 처리 흐름 (사전 구축 단계)
 
-```plaintext
-PDF 수집 → 텍스트 추출 → 청크 분할
-→ OpenAI 임베딩 생성
-→ ChromaDB 벡터 저장 (with 메타데이터)
+```
+[1] PDF 수집
+ → 외교부, 대사관, 공공기관 PDF 문서 수집 (파일명: {국가}_{주제}.pdf)
+
+[2] 텍스트 추출
+ → PyMuPDF로 페이지 단위 텍스트 로딩
+
+[3] 텍스트 분할
+ → LangChain의 RecursiveCharacterTextSplitter로 1000자 단위 청크 분할 (200자 중첩)
+
+[4] 임베딩 생성
+ → 각 청크를 OpenAI 'text-embedding-3-small' 모델로 벡터화
+
+[5] ChromaDB 저장
+ → 'global-documents' 컬렉션에 벡터 + 메타데이터(country, doc_type 등) 저장
 ```
 
-### ☁️ 질의응답 흐름
+---
 
-```plaintext
-사용자 질문 (한국어)
-→ 영어 번역 → RAG로 문서 검색 (MMR)
-→ GPT-3.5 or Fine-tuned 모델에 context와 함께 프롬프트 생성
-→ 응답 생성 → 한국어 번역 → DB 저장 및 응답
+### ☁️ 질의응답 흐름 (실시간 응답 생성)
+
+```
+[1] 사용자 질문 입력 (한국어)
+
+[2] 질문 번역
+ → GoogleTranslator 또는 GPT로 영어로 번역
+
+[3] 유사 문서 검색
+ → ChromaDB에서 MMR 방식으로 관련 청크 k=5개 검색
+ → top 3개의 page_content만 context로 추출
+
+[4] 응답 생성
+ → context + 질문을 프롬프트로 GPT-3.5-turbo 또는 Fine-tuned 모델에 입력
+ → 영어로 응답 생성
+
+[5] 한국어 번역
+ → 응답 결과를 다시 한국어로 자동 번역
+
+[6] DB 저장
+ → 질문, 응답, 참조 문서 정보를 `messages` 테이블에 저장
 ```
 
-### ☁️ 파인튜닝 흐름
+---
 
-```plaintext
-ChromaDB 문서 → QA 자동 생성
-→ huggingface dataset 구성
-→ Flan-T5 모델에 LoRA 파인튜닝
-→ 새로운 LLM 응답 모델로 사용
+### ☁️ 파인튜닝 흐름 (LLM 경량화 학습 파이프라인)
+
+```
+[1] PDF 임베딩 완료된 상태에서 QA 생성
+ → 영어 질문 생성 (EnglishQuestionGenerator)
+ → RAG 검색으로 context 확보
+ → GPT-3.5 or 4로 답변 생성
+
+[2] QA 쌍 저장
+ → question, context, answer를 JSON or CSV로 저장
+
+[3] 학습 데이터 구성
+ → Huggingface Datasets 형식으로 tokenization
+
+[4] LoRA 기반 파인튜닝
+ → Flan-T5 모델에 QLoRA 적용, context+question → answer 학습
+
+[5] Fine-tuned LLM 모델로 교체
+ → generate_with_translation 내부에서 model_id로 호출 가능
+```
+
+---
+
+### ☁️ 전체 흐름 요약 (시퀀스 관점)
+
+```
+[사용자] ─ 질문(한글)
+        ↓
+[번역기] ─ 영어 번역
+        ↓
+[RAG] ─ MMR 방식으로 관련 문서 5개 추출
+        ↓
+[LLM] ─ 질문 + context 기반 응답 생성
+        ↓
+[번역기] ─ 한국어 번역
+        ↓
+[DB] ─ 응답 저장 → 사용자 출력
 ```
 
 ---
 ---
 
 ## ✈️ WBS
-<img src="./WBS.png">
+![WBS](image/WBS.png)
 
 ---
 ---
@@ -123,7 +183,7 @@ ChromaDB 문서 → QA 자동 생성
   - 대부분 `.pdf` (공식 대사관·기관 공지문)
   - 여행안전정보: 공공데이터포털 OpenAPI 활용
 - **저장 구조**: 국가_문서유형.pdf → 국가/유형 기반 태깅 저장
-<img src="./Map.png">
+![map](image/Map.png)
 
 ---
 ---
@@ -221,7 +281,7 @@ response = await llm.generate_with_translation(
 ## ✈️ 진행 과정 중 프로그램 개선 노력
 > ### ☁️ 웹 크롤링 차단
 - 정보 출처가 공식 기관이다 보니, 웹 크롤링 불가
-<img src="./result_image.png">
+![denied](image/result_image.png)
 
 > ### ☁️ 학습 데이터의 편향
 - 프랑스 비자 질문을 했는데, 모델은 엉뚱한 답을 했습니다.  
