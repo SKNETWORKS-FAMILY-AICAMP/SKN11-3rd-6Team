@@ -206,7 +206,6 @@ response = await llm.generate_with_translation(
 
 ![Uploading Map.png…]()
 
-
 ---
 ---
 
