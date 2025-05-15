@@ -78,7 +78,49 @@
 
 ---
 ---
+## ✈️ 시스템 아키텍처 및 워크플로우
 
+### ☁️ 문서 처리 흐름
+
+```plaintext
+PDF 수집 → 텍스트 추출 → 청크 분할
+→ OpenAI 임베딩 생성
+→ ChromaDB 벡터 저장 (with 메타데이터)
+```
+
+### ☁️ 질의응답 흐름
+
+```plaintext
+사용자 질문 (한국어)
+→ 영어 번역 → RAG로 문서 검색 (MMR)
+→ GPT-3.5 or Fine-tuned 모델에 context와 함께 프롬프트 생성
+→ 응답 생성 → 한국어 번역 → DB 저장 및 응답
+```
+
+### ☁️ 파인튜닝 흐름
+
+```plaintext
+ChromaDB 문서 → QA 자동 생성
+→ huggingface dataset 구성
+→ Flan-T5 모델에 LoRA 파인튜닝
+→ 새로운 LLM 응답 모델로 사용
+```
+---
+---
+## ✈️ WBS
+![WBS](image/WBS.png)
+---
+---
+## ✈️ 수집 데이터
+
+- **카테고리**: 비자 / 보험 / 국가별 여행 안전정보 / 입국절차·규정
+- **형태**:
+  - 대부분 `.pdf` (공식 대사관·기관 공지문)
+  - 여행안전정보: 공공데이터포털 OpenAPI 활용
+- **저장 구조**: 국가_문서유형.pdf → 국가/유형 기반 태깅 저장
+![map](image/Map.png)
+---
+---
 ## ✈️ 구현 명세서
 
 ### ☁️ 주요 모듈
@@ -118,51 +160,6 @@
 
 ---
 ---
-
-## ✈️ 시스템 아키텍처 및 워크플로우
-
-### ☁️ 문서 처리 흐름
-
-```plaintext
-PDF 수집 → 텍스트 추출 → 청크 분할
-→ OpenAI 임베딩 생성
-→ ChromaDB 벡터 저장 (with 메타데이터)
-```
-
-### ☁️ 질의응답 흐름
-
-```plaintext
-사용자 질문 (한국어)
-→ 영어 번역 → RAG로 문서 검색 (MMR)
-→ GPT-3.5 or Fine-tuned 모델에 context와 함께 프롬프트 생성
-→ 응답 생성 → 한국어 번역 → DB 저장 및 응답
-```
-
-### ☁️ 파인튜닝 흐름
-
-```plaintext
-ChromaDB 문서 → QA 자동 생성
-→ huggingface dataset 구성
-→ Flan-T5 모델에 LoRA 파인튜닝
-→ 새로운 LLM 응답 모델로 사용
-```
-
----
----
-## ✈️ WBS
-![WBS](image/WBS.png)
----
----
-## ✈️ 수집 데이터
-
-- **카테고리**: 비자 / 보험 / 국가별 여행 안전정보 / 입국절차·규정
-- **형태**:
-  - 대부분 `.pdf` (공식 대사관·기관 공지문)
-  - 여행안전정보: 공공데이터포털 OpenAPI 활용
-- **저장 구조**: 국가_문서유형.pdf → 국가/유형 기반 태깅 저장
-![map](image/Map.png)
----
----
 ## ✈️ RAG 및 LLM 통합 구현
 
 ```python
@@ -182,6 +179,10 @@ response = await llm.generate_with_translation(
 ```
 - RAG는 MMR 방식으로 문서 검색 정확도 향상
 - context 기반 응답 → LLM으로 생성 → 자동 번역
+---
+---
+## ✈️ DB 연동 구현 코드
+### [링크](https://drive.google.com/drive/folders/1Tpqjcyy5QZZGoZL1YKsrUEsv2veF81Xa?usp=sharing)
 ---
 ---
 ## ✈️ 수행 결과 요약
