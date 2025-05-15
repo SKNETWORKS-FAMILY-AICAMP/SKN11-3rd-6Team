@@ -12,8 +12,15 @@ logger = logging.getLogger(__name__)
 def initialize_vector_database():
     """벡터 데이터베이스 초기화"""
     
+    # 벡터 DB 경로 절대 경로로 변환
+    vector_db_path = os.path.abspath(settings.VECTOR_DB_PATH)
+    logger.info(f"Vector DB path: {vector_db_path}")
+    
+    # 벡터 DB 디렉토리 생성
+    os.makedirs(vector_db_path, exist_ok=True)
+    
     # PDF 디렉토리 경로 설정
-    pdf_dir = "/Users/comet39/SKN_PJT/SKN_3rd_PJT/backend2/data/pdfs"  # PDF 파일들이 있는 디렉토리 경로
+    pdf_dir = "/Users/comet39/SKN_PJT/SKN11-3rd-6Team/backend_v1/data/pdfs"  # 실제 PDF 파일들이 있는 경로
     
     # 디렉토리 확인
     if not os.path.exists(pdf_dir):
@@ -39,42 +46,65 @@ def initialize_vector_database():
     logger.info(f"Found {len(pdf_files)} PDF files to process")
     logger.info(f"Files: {pdf_files}")
     
-    # RAG 인스턴스 생성
-    rag = RAG()
-    
-    # 벡터 DB 경로 생성
-    os.makedirs(settings.VECTOR_DB_PATH, exist_ok=True)
-    
-    # PDF 파일들 처리
-    logger.info("Starting PDF processing...")
-    rag.process_pdf_directory(pdf_dir)
-    
     logger.info("Vector database initialization completed")
 
 def check_and_init_vector_db():
     """벡터 DB 상태 확인 및 필요시 초기화"""
     try:
+        # 벡터 DB 경로 절대 경로로 변환
+        vector_db_path = os.path.abspath(settings.VECTOR_DB_PATH)
+        logger.info(f"Checking vector DB at: {vector_db_path}")
+        
         # 벡터 DB 경로 확인
-        if not os.path.exists(settings.VECTOR_DB_PATH):
-            logger.info("Vector DB not found. Initializing...")
+        if not os.path.exists(vector_db_path):
+            logger.info("Vector DB directory not found. Creating and initializing...")
+            os.makedirs(vector_db_path, exist_ok=True)
             initialize_vector_database()
             return
         
-        # ChromaDB collection 확인
-        from chromadb import PersistentClient
-        client = PersistentClient(path=settings.VECTOR_DB_PATH)
-        
-        try:
-            collection = client.get_collection("global-documents")
-            count = collection.count()
-            logger.info(f"Vector DB exists with {count} documents")
-            
-            if count == 0:
-                logger.warning("Vector DB is empty. Initializing...")
-                initialize_vector_database()
-        except:
-            logger.info("Collection not found. Initializing...")
+        # 디렉토리는 있지만 비어있는지 확인
+        db_contents = os.listdir(vector_db_path)
+        if not db_contents:
+            logger.info("Vector DB directory is empty. Initializing...")
             initialize_vector_database()
+            return
+            
+        logger.info(f"Vector DB exists with contents: {db_contents}")
+        
+        # ChromaDB collection 확인
+        try:
+            import chromadb
+            from chromadb.config import Settings
+            
+            chroma_settings = Settings(
+                persist_directory=vector_db_path,
+                anonymized_telemetry=False
+            )
+            client = chromadb.Client(chroma_settings)
+            
+            collections = client.list_collections()
+            logger.info(f"Collections found: {[col.name for col in collections]}")
+            
+            if not collections:
+                logger.warning("No collections found. Initializing...")
+                initialize_vector_database()
+                return
+                
+            # global-documents collection 확인
+            try:
+                collection = client.get_collection("global-documents")
+                count = collection.count()
+                logger.info(f"Vector DB exists with {count} documents in global-documents collection")
+                
+                if count == 0:
+                    logger.warning("Collection is empty. Initializing...")
+                    initialize_vector_database()
+            except Exception as e:
+                logger.info(f"global-documents collection not found: {e}. Initializing...")
+                initialize_vector_database()
+                
+        except Exception as e:
+            logger.error(f"Error checking ChromaDB: {e}")
             
     except Exception as e:
         logger.error(f"Error checking vector DB: {e}")
@@ -85,4 +115,6 @@ async def startup_event():
     check_and_init_vector_db()
 
 if __name__ == "__main__":
+    # 직접 실행 시 강제 초기화
+    logger.info("Starting direct vector DB initialization...")
     initialize_vector_database()

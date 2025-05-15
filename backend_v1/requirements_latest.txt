@@ -1,0 +1,50 @@
+# Core Dependencies
+python-dotenv
+requests
+
+# Web Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Database
+sqlalchemy
+pymysql
+cryptography
+
+# OpenAI & LangChain
+openai
+langchain
+langchain-openai
+langchain-community
+langchain-core
+langchain-chroma
+langchain-text-splitters
+
+# Google AI
+google-generativeai
+
+# Embeddings
+tiktoken
+
+# Vector Store - 최신 버전
+chromadb
+
+# Deep Learning
+torch
+transformers
+sentencepiece
+
+# Translation
+deep-translator
+
+# Document Processing
+PyMuPDF
+
+# NLP
+spacy
+
+# Dev tools
+pytest
+httpx

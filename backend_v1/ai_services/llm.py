@@ -55,15 +55,33 @@ class LLM:
     def _load_flan_t5_model(self):
         """파인튜닝된 Flan-T5 모델 로드"""
         try:
-            # 파인튜닝된 모델 경로
-            finetuned_model_path = "/Users/comet39/SKN_PJT/3rd_project_v2/backend2/data/models/finetuned-flan-t5-base/checkpoint-40"
+            huggingface_model_id = "cometlee39/finetuned-flan-t5-base"
             
-            # 파인튜닝된 모델이 있으면 사용
-            if os.path.exists(finetuned_model_path):
-                logger.info(f"Loading finetuned Flan-T5 model from {finetuned_model_path}")
-                self.flan_t5_model = T5ForConditionalGeneration.from_pretrained(finetuned_model_path)
+            try:
+                logger.info(f"Loading finetuned Flan-T5 model from Hugging Face: {huggingface_model_id}")
+                
+                # 모델과 토크나이저 로드
+                self.flan_t5_model = T5ForConditionalGeneration.from_pretrained(huggingface_model_id)
                 self.flan_t5_tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
-
+                logger.info("Successfully loaded model from Hugging Face")
+                
+            except Exception as e:
+                # Hugging Face에서 못 찾으면 로컬 파일 확인
+                logger.warning(f"Failed to load from Hugging Face: {e}")
+                
+                # 로컬 파인튜닝된 모델 경로
+                finetuned_model_path = "/Users/comet39/SKN_PJT/3rd_project_v2/backend2/data/models/finetuned-flan-t5-base/checkpoint-40"
+                
+                if os.path.exists(finetuned_model_path):
+                    logger.info(f"Loading finetuned Flan-T5 model from local path: {finetuned_model_path}")
+                    self.flan_t5_model = T5ForConditionalGeneration.from_pretrained(finetuned_model_path)
+                    self.flan_t5_tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
+                else:
+                    # 기본 모델 사용
+                    logger.info("Loading default Flan-T5 base model")
+                    self.flan_t5_model = T5ForConditionalGeneration.from_pretrained("google/flan-t5-base")
+                    self.flan_t5_tokenizer = T5Tokenizer.from_pretrained("google/flan-t5-base")
+            
             self.flan_t5_model.to(self.device)
             self.flan_t5_model.eval()  # 평가 모드로 설정
             logger.info(f"Flan-T5 model loaded successfully on {self.device}")
