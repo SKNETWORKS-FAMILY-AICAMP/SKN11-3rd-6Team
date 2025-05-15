@@ -108,7 +108,7 @@ ChromaDB 문서 → QA 자동 생성
 ---
 ---
 ## ✈️ WBS
-![WBS](image/WBS.png)
+<img src="./WBS.png">
 ---
 ---
 ## ✈️ 수집 데이터
@@ -118,7 +118,7 @@ ChromaDB 문서 → QA 자동 생성
   - 대부분 `.pdf` (공식 대사관·기관 공지문)
   - 여행안전정보: 공공데이터포털 OpenAPI 활용
 - **저장 구조**: 국가_문서유형.pdf → 국가/유형 기반 태깅 저장
-![map](image/Map.png)
+<img src="./Map.png">
 ---
 ---
 ## ✈️ 구현 명세서
@@ -196,7 +196,7 @@ response = await llm.generate_with_translation(
 ## ✈️ 진행 과정 중 프로그램 개선 노력
 > ### ☁️ 웹 크롤링 차단
 - 정보 출처가 공식 기관이다 보니, 웹 크롤링 불가
-![denied](image/result_image.png)
+<img src="./result_image.png">
 
 > ### ☁️ 학습 데이터의 편향
 - 프랑스 비자 질문을 했는데, 모델은 엉뚱한 답을 했습니다.  
