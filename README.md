@@ -203,8 +203,7 @@ response = await llm.generate_with_translation(
 - Fine-tuned 모델 적용으로 도메인 적합 응답 확보
 - 국가·주제별 필터링, 예시 질문, 다국어 번역 등 UX 강화
 - 문서 기반 실시간 챗봇 응답 구현
-
-![Uploading Map.png…]()
+<img src="./Map.png">
 
 ---
 ---
