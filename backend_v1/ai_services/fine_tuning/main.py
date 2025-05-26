@@ -1,121 +1,57 @@
-"""VectorDB RAG Fine-tuner 사용 예제"""
+import argparse
+import asyncio
+from question_generator import QuestionGenerator
+from qa_pair_generator import QAPairGenerator
+from model_trainer import ModelTrainer
 
-from finetuner import VectorDBRAGFineTuner
-
-
-def basic_example():
-    """기본 사용 예제"""
-    # RAG 파인튜너 초기화
-    finetuner = VectorDBRAGFineTuner(
-        model_name="facebook/opt-125m",
-        use_qlora=False,
-        vectordb_path="./chroma_db",
-        embedding_model="text-embedding-3-small"
-    )
+async def main():
+    parser = argparse.ArgumentParser(description='Fine-tuning pipeline')
+    parser.add_argument('--step', choices=['questions', 'qa_pairs', 'train', 'all'], 
+                       default='all', help='Which step to run')
+    parser.add_argument('--questions_per_topic', type=int, default=1000,
+                       help='Number of questions per country per topic')
+    parser.add_argument('--max_qa_pairs', type=int, default=None,
+                       help='Maximum number of QA pairs to generate')
+    parser.add_argument('--model_name', type=str, default='facebook/opt-125m',
+                       help='Model name for fine-tuning')
+    parser.add_argument('--use_qlora', action='store_true',
+                       help='Use QLoRA for training')
+    parser.add_argument('--output_dir', type=str, default='./outputs',
+                       help='Output directory')
+    args = parser.parse_args()
     
-    # 모델 로드
-    finetuner.load_model()
+    if args.step in ['questions', 'all']:
+        print("=== Generating Questions ===")
+        generator = QuestionGenerator()
+        questions = generator.generate_questions(args.questions_per_topic)
+        questions_file = f"{args.output_dir}/questions.json"
+        generator.save_questions(questions, questions_file)
+        print(f"Generated {len(questions)} questions")
     
-    # 학습 실행
-    finetuner.train(
-        output_dir="./rag-finetuned-model",
-        num_qa_pairs=500,
-        num_epochs=3,
-        batch_size=1,
-        save_qa_pairs=True
-    )
+    if args.step in ['qa_pairs', 'all']:
+        print("=== Generating QA Pairs ===")
+        try:
+            qa_generator = QAPairGenerator()
+            
+            questions_file = f"{args.output_dir}/questions.json"
+            qa_pairs_file = f"{args.output_dir}/qa_pairs.json"
+            qa_pairs = await qa_generator.generate_qa_pairs(questions_file, qa_pairs_file, args.max_qa_pairs)
+            print(f"Generated {len(qa_pairs)} QA pairs")
+        except Exception as e:
+            print(f"Error in QA pair generation: {e}")
+            import traceback
+            traceback.print_exc()
     
-    # 테스트 생성
-    query = "What is machine learning?"
-    response, docs = finetuner.generate_with_rag(query)
-    print(f"Query: {query}")
-    print(f"Response: {response}")
-    print(f"Retrieved docs: {len(docs)}")
-
-
-def advanced_example():
-    """고급 사용 예제 - 다른 모델 사용"""
-    # T5 모델 사용
-    finetuner = VectorDBRAGFineTuner(
-        model_name="google/flan-t5-small",
-        use_qlora=False,
-        vectordb_path="./chroma_db",
-        embedding_model="text-embedding-3-small",
-        max_length=256
-    )
+    # if args.step in ['train', 'all']:
+    #     print("=== Training Model ===")
+    #     trainer = ModelTrainer(args.model_name, args.use_qlora)
+    #     trainer.load_model()
+        
+    #     qa_pairs_file = f"{args.output_dir}/qa_pairs.json"
+    #     model_output_dir = f"{args.output_dir}/finetuned_model"
+    #     trainer.train(qa_pairs_file, model_output_dir)
     
-    finetuner.load_model()
-    
-    # 더 적은 데이터로 빠른 학습
-    finetuner.train(
-        output_dir="./t5-rag-finetuned",
-        num_qa_pairs=100,
-        num_epochs=1,
-        batch_size=2,
-        learning_rate=5e-5,
-        save_qa_pairs=True
-    )
-    
-    # 여러 쿼리 테스트
-    queries = [
-        "What is deep learning?",
-        "Explain neural networks",
-        "How does backpropagation work?"
-    ]
-    
-    for query in queries:
-        response, docs = finetuner.generate_with_rag(query, max_new_tokens=150)
-        print(f"\nQuery: {query}")
-        print(f"Response: {response}")
-        print(f"Used {len(docs)} documents for context")
-
-
-def inference_only_example():
-    """이미 학습된 모델로 추론만 하는 예제"""
-    # 기존 학습된 모델 로드
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    from langchain.vectorstores import Chroma
-    from langchain.embeddings import OpenAIEmbeddings
-    
-    # 모델과 토크나이저 로드
-    model_path = "./rag-finetuned-model"
-    model = AutoModelForCausalLM.from_pretrained(model_path)
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
-    
-    # VectorDB 로드
-    embeddings = OpenAIEmbeddings()
-    vectordb = Chroma(
-        persist_directory="./chroma_db",
-        embedding_function=embeddings
-    )
-    
-    # 쿼리 실행
-    query = "What are transformers in machine learning?"
-    relevant_docs = vectordb.similarity_search(query, k=3)
-    context = " ".join([doc.page_content[:200] for doc in relevant_docs])
-    
-    prompt = f"Question: {query}\nContext: {context}\nAnswer:"
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512)
-    
-    with torch.no_grad():
-        outputs = model.generate(
-            **inputs,
-            max_new_tokens=100,
-            do_sample=True,
-            temperature=0.7,
-            top_p=0.9,
-        )
-    
-    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    if "Answer:" in response:
-        response = response.split("Answer:")[-1].strip()
-    
-    print(f"Query: {query}")
-    print(f"Response: {response}")
-
+    print("Pipeline completed!")
 
 if __name__ == "__main__":
-    # 원하는 예제 실행
-    basic_example()
-    # advanced_example()
-    # inference_only_example()
+    asyncio.run(main())
