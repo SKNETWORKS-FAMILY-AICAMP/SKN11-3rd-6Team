@@ -1,32 +1,50 @@
 import json
 import random
 import time
-from typing import List, Dict
+import asyncio
+from typing import List, Dict, Tuple
 from tqdm import tqdm
 from collections import defaultdict
 import sys
 import os
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+import aiofiles
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from rag import RAG  # Relative import from parent directory
-from llm import LLM  # Relative import from parent directory
+from rag import RAG
+from llm import LLM
+
+@dataclass
+class QAResult:
+    question: str
+    answer: str = None
+    context: str = None
+    error: str = None
 
 class QAPairGenerator:
-    def __init__(self):
+    def __init__(self, concurrency_limit: int = 10, batch_size: int = 50):
         self.rag = RAG()
         self.llm = LLM(model_name="gpt-3.5-turbo")
         self.stats = defaultdict(int)
         self.start_time = None
+        self.concurrency_limit = concurrency_limit
+        self.batch_size = batch_size
+        
+        # 세마포어로 동시 실행 제한
+        self.semaphore = asyncio.Semaphore(concurrency_limit)
+        
+        # 결과 캐시 (같은 질문 반복 방지)
+        self.cache = {}
         
     async def generate_qa_pairs(self, questions_file: str, output_file: str, max_pairs: int = None):
-        """질문 파일을 읽어서 QA 쌍 생성"""
+        """병렬 처리로 QA 쌍 생성"""
         self.start_time = time.time()
         
-        # 질문 로드
+        # 질문 로드 (비동기)
         print("📖 Loading questions...")
-        with open(questions_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        questions = await self._load_questions_async(questions_file)
         
-        questions = data['questions']
         total_questions = len(questions)
         
         if max_pairs:
@@ -34,182 +52,247 @@ class QAPairGenerator:
             print(f"🎲 Randomly selected {len(questions)} questions from {total_questions}")
         
         print(f"🎯 Target: Generate {len(questions)} QA pairs")
+        print(f"⚡ Concurrency limit: {self.concurrency_limit}")
+        print(f"📦 Batch size: {self.batch_size}")
         
-        # 나라별, 토픽별 통계 준비
-        country_topic_stats = defaultdict(lambda: defaultdict(int))
-        for q in questions:
-            country_topic_stats[q['country']][q['topic']] += 1
-        
-        # 통계 출력
-        print("\n📊 Questions distribution:")
-        for country in sorted(country_topic_stats.keys()):
-            topics_info = []
-            for topic in sorted(country_topic_stats[country].keys()):
-                count = country_topic_stats[country][topic]
-                topics_info.append(f"{topic}: {count}")
-            print(f"  {country}: {', '.join(topics_info)}")
-        
+        # 배치별 병렬 처리
         qa_pairs = []
-        failed_questions = []
         
-        # 전체 진행도 바
-        print(f"\n🚀 Starting QA pair generation...")
-        overall_pbar = tqdm(total=len(questions), desc="Overall Progress", 
-                           position=0, leave=True, 
-                           bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]')
+        # 배치로 나누기
+        batches = [questions[i:i + self.batch_size] 
+                  for i in range(0, len(questions), self.batch_size)]
         
-        # 현재 처리 중인 정보를 위한 진행도 바
-        current_pbar = tqdm(total=1, desc="Current", position=1, leave=False,
-                           bar_format='Current: {desc}')
+        print(f"🔄 Processing {len(batches)} batches...")
         
-        for i, q_data in enumerate(questions):
-            country = q_data['country']
-            topic = q_data['topic']
-            question_id = q_data['id']
+        # 전체 진행도
+        total_pbar = tqdm(total=len(questions), desc="Total Progress")
+        
+        for batch_idx, batch in enumerate(batches):
+            print(f"\n🚀 Processing batch {batch_idx + 1}/{len(batches)}")
             
-            # 현재 처리 중인 질문 정보 업데이트
-            current_pbar.set_description(f"{country} - {topic}")
-            current_pbar.refresh()
+            # 배치 내 병렬 처리
+            batch_results = await self._process_batch_parallel(batch)
             
-            if topic == 'immigration':
-                topic = 'immigration_regulations'
-            elif topic == 'safety':
-                topic = 'immigration_safety'
+            # 결과 분류
+            for result in batch_results:
+                if result.error:
+                    # 실패한 질문은 간단히 로깅만
+                    self.stats['failed'] += 1
+                    print(f"❌ Failed: {result.error}")
+                else:
+                    qa_pairs.append({
+                        "question": result.question,
+                        "answer": result.answer,
+                        "context": result.context[:1000] if result.context else ""
+                    })
+                    self.stats['success'] += 1
+                
+                total_pbar.update(1)
             
+                # 배치별 중간 저장
+            if (batch_idx + 1) % 5 == 0:  # 5배치마다
+                await self._save_intermediate_async(qa_pairs, output_file, batch_idx + 1)
+                self._print_progress_stats(len(qa_pairs) + self.stats['failed'], len(questions))
+        
+        total_pbar.close()
+        
+        # 최종 결과 저장 및 통계
+        await self._save_final_results_async(qa_pairs, output_file)
+        self._print_final_stats(len(questions), qa_pairs)
+        
+        return qa_pairs
+    
+    async def _load_questions_async(self, questions_file: str) -> List[Dict]:
+        """비동기로 질문 파일 로드"""
+        async with aiofiles.open(questions_file, 'r', encoding='utf-8') as f:
+            content = await f.read()
+            data = json.loads(content)
+            return data['questions']
+    
+    async def _process_batch_parallel(self, batch: List[Dict]) -> List[QAResult]:
+        """배치를 병렬로 처리"""
+        tasks = [self._process_single_question(q_data) for q_data in batch]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # 예외 처리
+        processed_results = []
+        for i, result in enumerate(results):
+            if isinstance(result, Exception):
+                processed_results.append(QAResult(
+                    question=batch[i]['question'],
+                    error=str(result)
+                ))
+            else:
+                processed_results.append(result)
+        
+        return processed_results
+    
+    async def _process_single_question(self, q_data: Dict) -> QAResult:
+        """단일 질문 처리 (세마포어로 동시 실행 제한)"""
+        async with self.semaphore:
             try:
-                # RAG로 컨텍스트 검색
-                context, references = self.rag.search_with_translation(
-                    query=q_data['question'],
-                    country=country.lower(),
-                    doc_type=topic + "_info"
+                country = q_data['country'].lower()
+                topic = q_data['topic']
+                question = q_data['question']
+                
+                if topic == 'immigration':
+                    topic = 'immigration_regulations'
+                elif topic == 'safety':
+                    topic = 'immigration_safety'
+                    
+                # 캐시 확인
+                cache_key = f"{country}_{topic}_{hash(question)}"
+                if cache_key in self.cache:
+                    cached_result = self.cache[cache_key]
+                    return QAResult(
+                        question=question,
+                        answer=cached_result['answer'],
+                        context=cached_result['context']
+                    )
+                
+                # RAG 검색
+                context, references = await self._search_context_async(
+                    question, country, topic + "_info"
                 )
                 
-                # LLM으로 답변 생성
+                # LLM 답변 생성
                 answer = await self.llm.generate_with_translation(
-                    query=q_data['question'],
+                    query=question,
                     context=context,
                     references=references,
                     translate_to_korean=False
                 )
                 
-                qa_pairs.append({
-                    "question": q_data['question'],
-                    "answer": answer,
-                    "context": context[:1000]
-                })
+                # 캐시에 저장
+                self.cache[cache_key] = {
+                    'answer': answer,
+                    'context': context
+                }
                 
-                self.stats['success'] += 1
-                self.stats[f'success_{country}'] += 1
-                self.stats[f'success_{topic}'] += 1
+                return QAResult(
+                    question=question,
+                    answer=answer,
+                    context=context
+                )
                 
             except Exception as e:
-                failed_questions.append({
-                    "question_id": question_id,
-                    "country": country,
-                    "topic": topic,
-                    "question": q_data['question'],
-                    "error": str(e)
-                })
-                
-                self.stats['failed'] += 1
-                self.stats[f'failed_{country}'] += 1
-                self.stats[f'failed_{topic}'] += 1
-                
-                # 에러가 너무 많이 발생하면 경고
-                if self.stats['failed'] > len(questions) * 0.1:  # 10% 이상 실패
-                    print(f"\n⚠️  Warning: High failure rate ({self.stats['failed']}/{i+1})")
-            
-            # 진행도 업데이트
-            overall_pbar.update(1)
-            
-            # 중간 결과 출력 (매 100개마다)
-            if (i + 1) % 100 == 0:
-                self._print_intermediate_stats(i + 1, len(questions))
-            
-            # 중간 저장 (매 500개마다)
-            if (i + 1) % 500 == 0:
-                self._save_intermediate_results(qa_pairs, output_file, i + 1)
-        
-        # 진행도 바 정리
-        current_pbar.close()
-        overall_pbar.close()
-        
-        # 최종 통계 출력
-        self._print_final_stats(len(questions), qa_pairs, failed_questions)
-        
-        return qa_pairs
-
-    def _print_intermediate_stats(self, current: int, total: int):
-        """중간 통계 출력"""
+                return QAResult(
+                    question=q_data['question'],
+                    error=str(e)
+                )
+    
+    async def _search_context_async(self, question: str, country: str, topic: str) -> Tuple[str, List]:
+        """RAG 검색 (비동기 래퍼)"""
+        # RAG.search_with_translation이 동기라면 ThreadPoolExecutor 사용
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future = executor.submit(
+                self.rag.search_with_translation,
+                query=question,
+                country=country,
+                doc_type=topic
+            )
+            return await loop.run_in_executor(None, lambda: future.result())
+    
+    async def _save_intermediate_async(self, qa_pairs: List[Dict], output_file: str, batch_num: int):
+        """비동기 중간 저장"""
+        backup_file = f"{output_file}.backup_batch_{batch_num}"
+        async with aiofiles.open(backup_file, 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(qa_pairs, ensure_ascii=False, indent=2))
+        print(f"💾 Backup saved: batch {batch_num}")
+    
+    async def _save_final_results_async(self, qa_pairs: List[Dict], output_file: str):
+        """비동기 최종 결과 저장"""
+        async with aiofiles.open(output_file, 'w', encoding='utf-8') as f:
+            await f.write(json.dumps(qa_pairs, ensure_ascii=False, indent=2))
+    
+    def _print_progress_stats(self, current: int, total: int):
+        """진행 상황 통계"""
         elapsed_time = time.time() - self.start_time
-        avg_time_per_pair = elapsed_time / current
-        estimated_remaining = avg_time_per_pair * (total - current)
-        
-        success_rate = (self.stats['success'] / current) * 100
-        
-        print(f"\n📈 Progress Update ({current}/{total}):")
-        print(f"  ✅ Success: {self.stats['success']} ({success_rate:.1f}%)")
-        print(f"  ❌ Failed: {self.stats['failed']}")
-        print(f"  ⏱️  Avg time per pair: {avg_time_per_pair:.2f}s")
-        print(f"  ⏰ Estimated remaining: {estimated_remaining/60:.1f} minutes")
-
-    def _save_intermediate_results(self, qa_pairs: List[Dict], output_file: str, current_count: int):
-        """중간 결과 저장"""
-        backup_file = f"{output_file}.backup_{current_count}"
-        with open(backup_file, 'w', encoding='utf-8') as f:
-            json.dump(qa_pairs, f, ensure_ascii=False, indent=2)
-        print(f"💾 Intermediate backup saved: {backup_file}")
-
-    def _save_final_results(self, qa_pairs: List[Dict], failed_questions: List[Dict], output_file: str):
-        """최종 결과 저장"""
-        # QA pairs 저장
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(qa_pairs, f, ensure_ascii=False, indent=2)
-        
-        # 실패한 질문들 저장
-        if failed_questions:
-            failed_file = output_file.replace('.json', '_failed.json')
-            with open(failed_file, 'w', encoding='utf-8') as f:
-                json.dump(failed_questions, f, ensure_ascii=False, indent=2)
-            print(f"❌ Failed questions saved to: {failed_file}")
-
-    def _print_final_stats(self, total_questions: int, qa_pairs: List[Dict], failed_questions: List[Dict]):
-        """최종 통계 출력"""
+        if current > 0:
+            avg_time_per_pair = elapsed_time / current
+            estimated_remaining = avg_time_per_pair * (total - current)
+            success_rate = (self.stats['success'] / current) * 100
+            
+            print(f"📈 Progress: {current}/{total}")
+            print(f"✅ Success rate: {success_rate:.1f}%")
+            print(f"⏱️ Avg time: {avg_time_per_pair:.2f}s/pair")
+            print(f"⏰ ETA: {estimated_remaining/60:.1f} min")
+    
+    def _print_final_stats(self, total_questions: int, qa_pairs: List[Dict]):
+        """최종 통계"""
         total_time = time.time() - self.start_time
+        failed_count = self.stats['failed']
         
         print(f"\n{'='*60}")
         print(f"🎉 QA Pair Generation Completed!")
         print(f"{'='*60}")
         print(f"📊 Final Statistics:")
-        print(f"  📝 Total questions processed: {total_questions}")
-        print(f"  ✅ Successfully generated: {len(qa_pairs)}")
-        print(f"  ❌ Failed: {len(failed_questions)}")
+        print(f"  📝 Total processed: {total_questions}")
+        print(f"  ✅ Generated: {len(qa_pairs)}")
+        print(f"  ❌ Failed: {failed_count}")
         print(f"  📈 Success rate: {(len(qa_pairs)/total_questions)*100:.1f}%")
-        print(f"  ⏱️  Total time: {total_time/60:.1f} minutes")
-        print(f"  ⚡ Average time per pair: {total_time/total_questions:.2f}s")
-        
-        # 나라별 성공률
-        print(f"\n🌍 Success rate by country:")
-        countries = set([qa['country'] for qa in qa_pairs])
-        for country in sorted(countries):
-            success_count = sum(1 for qa in qa_pairs if qa['country'] == country)
-            failed_count = sum(1 for fq in failed_questions if fq['country'] == country)
-            total_country = success_count + failed_count
-            success_rate = (success_count / total_country * 100) if total_country > 0 else 0
-            print(f"  {country}: {success_count}/{total_country} ({success_rate:.1f}%)")
-        
-        # 토픽별 성공률
-        print(f"\n📋 Success rate by topic:")
-        topics = set([qa['topic'] for qa in qa_pairs])
-        for topic in sorted(topics):
-            success_count = sum(1 for qa in qa_pairs if qa['topic'] == topic)
-            failed_count = sum(1 for fq in failed_questions if fq['topic'] == topic)
-            total_topic = success_count + failed_count
-            success_rate = (success_count / total_topic * 100) if total_topic > 0 else 0
-            print(f"  {topic}: {success_count}/{total_topic} ({success_rate:.1f}%)")
-        
-        # 결과 저장
-        self._save_final_results(qa_pairs, failed_questions, "./outputs/qa_pairs.json")
-        print(f"\n💾 Results saved to: ./outputs/qa_pairs.json")
-        if failed_questions:
-            print(f"❌ Failed questions details saved to: ./outputs/qa_pairs_failed.json")
+        print(f"  ⏱️ Total time: {total_time/60:.1f} minutes")
+        print(f"  ⚡ Avg time per pair: {total_time/total_questions:.2f}s")
+        print(f"  🚀 Throughput: {total_questions*60/total_time:.1f} pairs/minute")
+
+
+# 추가 최적화: 커넥션 풀링을 위한 LLM 클래스 확장
+class OptimizedLLM(LLM):
+    def __init__(self, model_name: str = "gpt-3.5-turbo", max_connections: int = 10):
+        super().__init__(model_name)
+        self.max_connections = max_connections
+        # OpenAI 클라이언트의 커넥션 풀 설정 (실제 구현은 LLM 클래스에 따라 다름)
+    
+    async def batch_generate(self, requests: List[Dict]) -> List[str]:
+        """배치 요청 처리"""
+        tasks = [
+            self.generate_with_translation(**req) 
+            for req in requests
+        ]
+        return await asyncio.gather(*tasks, return_exceptions=True)
+
+
+# 사용 예시
+# main.py에서 호출하기 위한 편의 함수들
+def create_qa_generator(concurrency_limit: int = 8, batch_size: int = 100) -> 'QAPairGenerator':
+    """QA Generator 인스턴스 생성"""
+    return QAPairGenerator(concurrency_limit=concurrency_limit, batch_size=batch_size)
+
+async def generate_qa_pairs_from_file(
+    questions_file: str, 
+    output_file: str, 
+    max_pairs: int = None,
+    concurrency_limit: int = 8,
+    batch_size: int = 100
+) -> List[Dict]:
+    """파일에서 질문을 읽어 QA 쌍 생성 (main.py에서 호출용)"""
+    generator = QAPairGenerator(
+        concurrency_limit=concurrency_limit,
+        batch_size=batch_size
+    )
+    
+    return await generator.generate_qa_pairs(
+        questions_file=questions_file,
+        output_file=output_file,
+        max_pairs=max_pairs
+    )
+
+# 사용 예시 및 테스트용
+async def main():
+    # 기본 설정
+    generator = QAPairGenerator(
+        concurrency_limit=8,  # 동시 실행 수 (API 제한에 맞게 조정)
+        batch_size=100        # 배치 크기
+    )
+    
+    qa_pairs = await generator.generate_qa_pairs(
+        questions_file="questions.json",
+        output_file="outputs/qa_pairs.json",
+        max_pairs=1000
+    )
+    
+    print(f"Generated {len(qa_pairs)} QA pairs")
+
+if __name__ == "__main__":
+    asyncio.run(main())

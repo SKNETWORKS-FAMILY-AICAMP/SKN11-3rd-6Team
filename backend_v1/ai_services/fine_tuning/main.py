@@ -1,7 +1,7 @@
 import argparse
 import asyncio
 from question_generator import QuestionGenerator
-from qa_pair_generator import QAPairGenerator
+from qa_pair_generator import QAPairGenerator, generate_qa_pairs_from_file
 from model_trainer import ModelTrainer
 
 async def main():
@@ -18,6 +18,10 @@ async def main():
                        help='Use QLoRA for training')
     parser.add_argument('--output_dir', type=str, default='./outputs',
                        help='Output directory')
+    parser.add_argument('--concurrency_limit', type=int, default=8,
+                       help='Maximum concurrent API calls')
+    parser.add_argument('--batch_size', type=int, default=50,
+                       help='Batch size for processing questions')
     args = parser.parse_args()
     
     if args.step in ['questions', 'all']:
@@ -31,7 +35,11 @@ async def main():
     if args.step in ['qa_pairs', 'all']:
         print("=== Generating QA Pairs ===")
         try:
-            qa_generator = QAPairGenerator()
+            # 직접 객체 생성 방법
+            qa_generator = QAPairGenerator(
+                concurrency_limit=args.concurrency_limit,
+                batch_size=args.batch_size
+            )
             
             questions_file = f"{args.output_dir}/questions.json"
             qa_pairs_file = f"{args.output_dir}/qa_pairs.json"
